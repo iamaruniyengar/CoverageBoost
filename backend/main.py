@@ -9,7 +9,7 @@ class CodeInput(BaseModel):
     languange: str
     framework: str
 
-@app.route("/health")
+@app.get("/health")
 def health():
     return {"status" :"healthy"}
 
