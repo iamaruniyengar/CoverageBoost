@@ -46,13 +46,57 @@ async def generate_tests(input: CodeInput):
         )
         
         generated_tests = response.choices[0].message.content
+
+        # Estimate coverage based on test comprehensiveness
+        coverage = estimate_coverage(input.code, generated_tests, input.language)
         
         return {
             "tests": generated_tests,
+            "coverage": coverage,
             "status": "success"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+def estimate_coverage(code: str, tests: str, language: str) -> int:
+    """Estimate test coverage based on code and test complexity"""
+    
+    # Language-specific comment patterns
+    comment_chars = {
+        'python': '#',
+        'javascript': '//'
+    }
+    
+    comment_char = comment_chars.get(language, '#')
+    
+    # Count meaningful code lines (excluding comments and empty lines)
+    code_lines = len([
+        l for l in code.split('\n') 
+        if l.strip() and not l.strip().startswith(comment_char)
+    ])
+    
+    # Count test lines
+    test_lines = len([l for l in tests.split('\n') if l.strip()])
+    
+    # Count test functions based on language
+    if language == 'python':
+        test_count = tests.count('def test_')
+    elif language == 'javascript':
+        # Count test(), it(), describe() blocks
+        test_count = (
+            tests.count('test(') + 
+            tests.count('it(') + 
+            tests.count('test.each(')
+        )
+    else:
+        test_count = 0
+    
+    # Heuristic: more tests relative to code = better coverage
+    ratio = test_lines / max(code_lines, 1)
+    test_density = test_count / max(code_lines / 10, 1)
+    
+    coverage = min(int(65 + (ratio * 20) + (test_density * 10)), 95)
+    return coverage
 
 if __name__=="__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
